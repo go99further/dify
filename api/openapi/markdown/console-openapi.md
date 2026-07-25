@@ -10573,12 +10573,6 @@ Update a plugin endpoint
 | 200 | Model providers retrieved successfully | **application/json**: [ModelProviderListResponse](#modelproviderlistresponse)<br> |
 
 ### [GET] /workspaces/current/model-providers/summary
-#### Parameters
-
-| Name | Located in | Description | Required | Schema |
-| ---- | ---------- | ----------- | -------- | ------ |
-| model_type | query | Enum class for model type. | No | string, <br>**Available values:** "llm", "moderation", "rerank", "speech2text", "text-embedding", "tts" |
-
 #### Responses
 
 | Code | Description | Schema |
@@ -19345,10 +19339,10 @@ Enum class for model property key.
 
 | Name | Type | Description | Required |
 | ---- | ---- | ----------- | -------- |
+| available_credentials | [ [CredentialConfiguration](#credentialconfiguration) ] |  | Yes |
 | current_credential_id | string |  | No |
 | current_credential_name | string |  | No |
 | current_credential_usable | boolean |  | Yes |
-| has_credentials | boolean |  | Yes |
 | status | [CustomConfigurationStatus](#customconfigurationstatus) |  | Yes |
 
 #### ModelProviderListResponse
