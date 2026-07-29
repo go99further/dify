@@ -1,6 +1,6 @@
 import type { ModelItem, ModelProvider } from '../../declarations'
 import { fireEvent, screen } from '@testing-library/react'
-import { render } from '@/test/console/render'
+import { renderWithConsoleQuery as render } from '@/test/console/query-data'
 import { ConfigurationMethodEnum } from '../../declarations'
 import ModelList from '../model-list'
 
@@ -49,6 +49,7 @@ describe('ModelList', () => {
   const mockProvider = {
     provider: 'test-provider',
     configurate_methods: ['customizableModel'],
+    custom_configuration: { custom_models: [] },
   } as unknown as ModelProvider
 
   const mockModels = [
@@ -246,10 +247,11 @@ describe('ModelList', () => {
     expect(screen.queryByTestId('add-custom-model')).not.toBeInTheDocument()
   })
 
-  it('should show custom model actions when provider is configurable and user can configure models', () => {
+  it('should show Add Model but hide Manage Credentials for configurable providers', () => {
     const configurableProvider = {
       provider: 'test-provider',
       configurate_methods: [ConfigurationMethodEnum.customizableModel],
+      custom_configuration: { custom_models: [] },
     } as unknown as ModelProvider
 
     mockWorkspacePermissionKeys = ['plugin.model_config']
@@ -263,14 +265,17 @@ describe('ModelList', () => {
       />,
     )
 
-    expect(screen.getByTestId('manage-credentials'))!.toBeInTheDocument()
-    expect(screen.getByTestId('add-custom-model'))!.toBeInTheDocument()
+    expect(screen.queryByTestId('manage-credentials')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'common.modelProvider.addModel' }),
+    ).toBeInTheDocument()
   })
 
   it('should hide custom model actions when provider is configurable but user cannot configure models', () => {
     const configurableProvider = {
       provider: 'test-provider',
       configurate_methods: [ConfigurationMethodEnum.customizableModel],
+      custom_configuration: { custom_models: [] },
     } as unknown as ModelProvider
 
     mockWorkspacePermissionKeys = []

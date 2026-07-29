@@ -45,8 +45,10 @@ const mockUseModalContextSelector = actualUseModalContextSelector as MockedFunct
 // Default mock data
 const defaultProviderContext = {
   modelProviders: [],
+  modelProviderPlugins: {},
   refreshModelProviders: noop,
   isLoadingModelProviders: false,
+  isSuccessModelProviders: false,
   textGenerationModelList: [],
   supportRetrievalMethods: [],
   isAPIKeySet: false,

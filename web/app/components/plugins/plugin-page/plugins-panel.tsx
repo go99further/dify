@@ -15,7 +15,12 @@ import ProviderDetail from '@/app/components/tools/provider/detail'
 import { useGetLanguage } from '@/context/i18n'
 import { systemFeaturesQueryOptions } from '@/features/system-features/client'
 import { renderI18nObject } from '@/i18n-config'
-import { useInstalledPluginList, useInvalidateInstalledPluginList } from '@/service/use-plugins'
+import {
+  normalizePluginCategoryListLanguage,
+  useInstalledPluginList,
+  useInvalidateInstalledPluginList,
+  useRetainFirstInstalledPluginPageOnUnmount,
+} from '@/service/use-plugins'
 import { usePluginsWithLatestVersion } from '../hooks'
 import { PluginCategoryEnum } from '../types'
 import { pluginPageContentFrameClassNames, pluginPageContentInsetClassNames } from './content-inset'
@@ -25,6 +30,8 @@ import FilterManagement from './filter-management'
 import PluginListSkeleton from './plugin-list-skeleton'
 import PluginsPanelResults from './plugins-panel-results'
 import { EMPTY_BUILTIN_TOOLS, filterBuiltinTools } from './plugins-panel-utils'
+
+const INTEGRATION_PLUGIN_PAGE_SIZE = 30
 
 const matchesSearchQuery = (
   plugin: PluginDetail & { latest_version: string },
@@ -84,6 +91,17 @@ const PluginsPanel = ({
     isAgentStrategyIntegrationPage ||
     isExtensionIntegrationPage
   const supportsTagFilter = !fixedCategory || isToolIntegrationPage || isTriggerIntegrationPage
+  const installedPluginFilters = useMemo(
+    () =>
+      isIntegrationCategoryPage
+        ? {
+            language: normalizePluginCategoryListLanguage(locale),
+            query: filters.searchQuery,
+            tags: supportsTagFilter ? filters.tags : [],
+          }
+        : undefined,
+    [filters.searchQuery, filters.tags, isIntegrationCategoryPage, locale, supportsTagFilter],
+  )
   const { data: enableMarketplace } = useSuspenseQuery({
     ...systemFeaturesQueryOptions(),
     select: (s) => s.enable_marketplace,
@@ -94,18 +112,19 @@ const PluginsPanel = ({
     isFetching,
     isLastPage,
     loadNextPage,
-  } = useInstalledPluginList(
-    false,
-    100,
-    fixedCategory
-      ? {
-          category: fixedCategory,
-          refetchOnMount: isIntegrationCategoryPage ? 'always' : undefined,
-        }
-      : undefined,
-  )
+  } = useInstalledPluginList({
+    category: fixedCategory,
+    filters: installedPluginFilters,
+    pageSize: isIntegrationCategoryPage ? INTEGRATION_PLUGIN_PAGE_SIZE : 100,
+    refetchOnMount: isIntegrationCategoryPage ? 'always' : undefined,
+  })
   const pluginListWithLatestVersion = usePluginsWithLatestVersion(pluginList?.plugins)
   const invalidateInstalledPluginList = useInvalidateInstalledPluginList()
+  useRetainFirstInstalledPluginPageOnUnmount(
+    isIntegrationCategoryPage ? fixedCategory : undefined,
+    INTEGRATION_PLUGIN_PAGE_SIZE,
+    installedPluginFilters,
+  )
   const currentPluginID = usePluginPageContext((v) => v.currentPluginID)
   const setCurrentPluginID = usePluginPageContext((v) => v.setCurrentPluginID)
   const [currentBuiltinToolID, setCurrentBuiltinToolID] = useState<string | undefined>()
@@ -236,6 +255,7 @@ const PluginsPanel = ({
         <>
           {hasVisiblePlugins || hasVisibleBuiltinTools || hasToolMarketplacePanel ? (
             <PluginsPanelResults
+              autoLoadNextPage={isIntegrationCategoryPage}
               containerRef={containerRef}
               contentFrameClassName={contentFrameClassName}
               contentInset={contentInset}
