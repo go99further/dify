@@ -472,7 +472,7 @@ class QueueErrorEvent(AppQueueEvent):
     """
 
     event: QueueEvent = QueueEvent.ERROR
-    error: Exception
+    error: Any = None
 
 
 class QueuePingEvent(AppQueueEvent):
