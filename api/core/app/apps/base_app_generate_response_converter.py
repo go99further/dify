@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Generator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from typing import Any, Union, cast
 
 from pydantic import JsonValue
@@ -21,7 +21,11 @@ class AppGenerateResponseConverter[TBlockingResponse: AppBlockingResponse](ABC):
 
     @classmethod
     def convert(
-        cls, response: Union[AppBlockingResponse, Generator[AppStreamResponse, Any, None]], invoke_from: InvokeFrom
+        cls,
+        response: Union[AppBlockingResponse, Generator[AppStreamResponse, Any, None]],
+        invoke_from: InvokeFrom,
+        *,
+        on_stream_closed: Callable[[], None] | None = None,
     ) -> Mapping[str, Any] | Generator[str | Mapping[str, Any], Any, None]:
         if invoke_from in {InvokeFrom.DEBUGGER, InvokeFrom.SERVICE_API}:
             if isinstance(response, AppBlockingResponse):
@@ -29,7 +33,11 @@ class AppGenerateResponseConverter[TBlockingResponse: AppBlockingResponse](ABC):
             else:
 
                 def _generate_full_response() -> Generator[dict[str, Any] | str, Any, None]:
-                    yield from cls.convert_stream_full_response(response)
+                    try:
+                        yield from cls.convert_stream_full_response(response)
+                    finally:
+                        if on_stream_closed is not None:
+                            on_stream_closed()
 
                 return _generate_full_response()
         else:
@@ -38,7 +46,11 @@ class AppGenerateResponseConverter[TBlockingResponse: AppBlockingResponse](ABC):
             else:
 
                 def _generate_simple_response() -> Generator[dict[str, Any] | str, Any, None]:
-                    yield from cls.convert_stream_simple_response(response)
+                    try:
+                        yield from cls.convert_stream_simple_response(response)
+                    finally:
+                        if on_stream_closed is not None:
+                            on_stream_closed()
 
                 return _generate_simple_response()
 

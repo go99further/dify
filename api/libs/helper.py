@@ -420,11 +420,15 @@ def compact_generate_response(
         def generate() -> Generator[str, None, None]:
             yield from stream_response
 
-        return Response(
+        http_response = Response(
             _stream_with_request_context(generate()),
             status=200,
             mimetype="text/event-stream",
         )
+        close_stream = getattr(stream_response, "close", None)
+        if callable(close_stream):
+            http_response.call_on_close(close_stream)
+        return http_response
 
 
 def length_prefixed_response(

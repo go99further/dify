@@ -259,6 +259,12 @@ class AgentAppGenerator(MessageBasedAppGenerator):
             user=user,
             stream=streaming,
         )
+        if isinstance(response, Generator):
+            return AgentAppGenerateResponseConverter.convert(
+                response=response,
+                invoke_from=invoke_from,
+                on_stream_closed=queue_manager.report_stream_closed,
+            )
         return AgentAppGenerateResponseConverter.convert(response=response, invoke_from=invoke_from)
 
     def resume_after_form_submission(

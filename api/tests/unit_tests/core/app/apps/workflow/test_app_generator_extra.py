@@ -41,10 +41,11 @@ class TestWorkflowAppGeneratorValidation:
         def response_stream():
             yield {"event": "workflow_finished"}
 
+        report_stream_closed = Mock()
         monkeypatch.setattr(generator, "_bind_file_access_scope", lambda **kwargs: contextlib.nullcontext())
         monkeypatch.setattr(
             "core.app.apps.workflow.app_generator.WorkflowAppQueueManager",
-            lambda **kwargs: SimpleNamespace(**kwargs),
+            lambda **kwargs: SimpleNamespace(report_stream_closed=report_stream_closed, **kwargs),
         )
         monkeypatch.setattr(
             "core.app.apps.workflow.app_generator.current_app",
@@ -60,7 +61,7 @@ class TestWorkflowAppGeneratorValidation:
         monkeypatch.setattr(generator, "_handle_response", lambda **kwargs: response_stream())
         monkeypatch.setattr(
             "core.app.apps.workflow.app_generator.WorkflowAppGenerateResponseConverter.convert",
-            lambda response, invoke_from: response,
+            lambda response, invoke_from, on_stream_closed=None: response,
         )
 
         managed_stream = generator._generate(

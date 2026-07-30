@@ -93,8 +93,12 @@ class AppQueueManager(ABC):
                         self.publish(QueuePingEvent(), PublishFrom.TASK_PIPELINE)
                         last_ping_time = elapsed_time // 10
         finally:
-            self._execution_coordinator.listener_closed(segment_completed=self._listener_segment_completed.is_set())
+            self.report_stream_closed()
             self._graph_runtime_state = None  # Release reference once consumers finish or close the generator.
+
+    def report_stream_closed(self) -> None:
+        """Report response/listener closure to the execution policy owner."""
+        self._execution_coordinator.listener_closed(segment_completed=self._listener_segment_completed.is_set())
 
     def stop_listen(self, *, execution_state: AppExecutionState) -> None:
         """Complete the current listener segment with an explicit execution state."""

@@ -414,10 +414,17 @@ class WorkflowAppGenerator(BaseAppGenerator):
                     draft_var_saver_factory=draft_var_saver_factory,
                     stream=streaming,
                 )
-                converted_response = WorkflowAppGenerateResponseConverter.convert(
-                    response=response,
-                    invoke_from=invoke_from,
-                )
+                if isinstance(response, Generator):
+                    converted_response = WorkflowAppGenerateResponseConverter.convert(
+                        response=response,
+                        invoke_from=invoke_from,
+                        on_stream_closed=queue_manager.report_stream_closed,
+                    )
+                else:
+                    converted_response = WorkflowAppGenerateResponseConverter.convert(
+                        response=response,
+                        invoke_from=invoke_from,
+                    )
             except BaseException:
                 self._join_worker_thread(worker_thread)
                 raise

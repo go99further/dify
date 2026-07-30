@@ -241,6 +241,12 @@ class ChatAppGenerator(MessageBasedAppGenerator):
                 stream=streaming,
             )
 
+            if isinstance(response, Generator):
+                return ChatAppGenerateResponseConverter.convert(
+                    response=response,
+                    invoke_from=invoke_from,
+                    on_stream_closed=queue_manager.report_stream_closed,
+                )
             return ChatAppGenerateResponseConverter.convert(response=response, invoke_from=invoke_from)
 
     def _generate_worker(
