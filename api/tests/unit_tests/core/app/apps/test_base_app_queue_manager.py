@@ -96,21 +96,3 @@ class TestBaseAppQueueManager:
         execution_redis.setex.assert_called_once_with("generate_task_stopped:t1", 600, 1)
         graph_engine_manager.return_value.send_stop_command.assert_called_once_with("t1", reason="stream closed")
         assert "Failed to send stop command for app execution task=t1" in caplog.text
-
-    def test_response_stream_close_reports_active_execution_to_coordinator(self):
-        with (
-            patch("core.app.apps.base_app_queue_manager.redis_client") as queue_redis,
-            patch("core.app.apps.execution_coordinator.redis_client") as execution_redis,
-            patch("core.app.apps.execution_coordinator.GraphEngineManager") as graph_engine_manager,
-        ):
-            queue_redis.setex.return_value = True
-            execution_redis.setex.return_value = True
-            manager = DummyQueueManager(task_id="t1", user_id="u1", invoke_from=InvokeFrom.SERVICE_API)
-
-            manager.report_stream_closed()
-
-        assert manager.execution_state is AppExecutionState.ABORTING
-        execution_redis.setex.assert_called_once_with("generate_task_stopped:t1", 600, 1)
-        graph_engine_manager.return_value.send_stop_command.assert_called_once_with(
-            "t1", reason="Client response stream closed before app execution completed"
-        )

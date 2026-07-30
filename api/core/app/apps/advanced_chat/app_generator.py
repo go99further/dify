@@ -631,17 +631,10 @@ class AdvancedChatAppGenerator(MessageBasedAppGenerator):
                         tenant_id=application_generate_entity.app_config.tenant_id,
                     ),
                 )
-                if isinstance(response, Generator):
-                    converted_response = AdvancedChatAppGenerateResponseConverter.convert(
-                        response=response,
-                        invoke_from=invoke_from,
-                        on_stream_closed=queue_manager.report_stream_closed,
-                    )
-                else:
-                    converted_response = AdvancedChatAppGenerateResponseConverter.convert(
-                        response=response,
-                        invoke_from=invoke_from,
-                    )
+                converted_response = AdvancedChatAppGenerateResponseConverter.convert(
+                    response=response,
+                    invoke_from=invoke_from,
+                )
             except BaseException:
                 self._join_worker_thread(worker_thread)
                 raise

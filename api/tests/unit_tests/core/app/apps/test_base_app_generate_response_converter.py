@@ -100,35 +100,3 @@ def test_convert_routes_stream_response_by_invoke_from() -> None:
     assert simple_result == [{"kind": "stream-simple"}]
     assert len(_DummyConverter.stream_full_calls) == 1
     assert len(_DummyConverter.stream_simple_calls) == 1
-
-
-def test_convert_reports_stream_close_when_consumer_disconnects() -> None:
-    _DummyConverter.reset()
-    closed: list[bool] = []
-
-    result = _DummyConverter.convert(
-        _build_stream_response(),
-        InvokeFrom.SERVICE_API,
-        on_stream_closed=lambda: closed.append(True),
-    )
-
-    assert isinstance(result, Generator)
-    assert next(result) == {"kind": "stream-full"}
-    assert closed == []
-
-    result.close()
-
-    assert closed == [True]
-
-
-def test_convert_reports_stream_close_after_normal_completion() -> None:
-    closed: list[bool] = []
-
-    result = _DummyConverter.convert(
-        _build_stream_response(),
-        InvokeFrom.WEB_APP,
-        on_stream_closed=lambda: closed.append(True),
-    )
-
-    assert list(result) == [{"kind": "stream-simple"}]
-    assert closed == [True]
