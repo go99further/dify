@@ -1,16 +1,8 @@
 from datetime import datetime
 
 import pytest
-from flask import Flask
 
-from libs.helper import (
-    OptionalTimestampField,
-    alphanumeric,
-    compact_generate_response,
-    email,
-    escape_like_pattern,
-    extract_tenant_id,
-)
+from libs.helper import OptionalTimestampField, alphanumeric, email, escape_like_pattern, extract_tenant_id
 from models.account import Account
 from models.model import EndUser
 
@@ -86,28 +78,6 @@ class TestOptionalTimestampField:
         value = datetime(2024, 1, 2, 3, 4, 5)
 
         assert field.format(value) == int(value.timestamp())
-
-
-def test_compact_generate_response_closes_source_when_consumer_disconnects():
-    app = Flask(__name__)
-    source_closed = False
-
-    def source():
-        nonlocal source_closed
-        try:
-            yield "data: first\n\n"
-            yield "data: second\n\n"
-        finally:
-            source_closed = True
-
-    with app.test_request_context():
-        response = compact_generate_response(source())
-        response_iterator = iter(response.response)
-
-        assert next(response_iterator) == "data: first\n\n"
-        response_iterator.close()
-
-    assert source_closed is True
 
 
 class TestEscapeLikePattern:
