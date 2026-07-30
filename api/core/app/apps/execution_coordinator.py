@@ -119,6 +119,12 @@ class AppExecutionCoordinator:
         if watchdog is not None:
             watchdog.cancel()
 
+        logger.info(
+            "Aborting app execution task=%s attempt=%s reason=%s",
+            self._task_id,
+            self._attempt_id,
+            reason,
+        )
         self._abort_execution(reason)
         return True
 
