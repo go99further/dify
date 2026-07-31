@@ -1,14 +1,14 @@
 'use client'
 
-import type { RecentAppResponse } from '@dify/contracts/api/console/apps/types.gen'
+import type { ReactNode } from 'react'
 import type { CreateAppModalProps } from '@/app/components/explore/create-app-modal'
 import type { StepByStepTourTaskId } from '@/app/components/step-by-step-tour/types'
-import type { Banner as BannerType } from '@/models/app'
 import type { App } from '@/models/explore'
 import type { TryAppSelection } from '@/types/try-app'
 import type { TrackCreateAppParams } from '@/utils/create-app-tracking'
+import { Button } from '@langgenius/dify-ui/button'
 import { cn } from '@langgenius/dify-ui/cn'
-import { queryOptions, useQueries, useSuspenseQuery } from '@tanstack/react-query'
+import { useQueries, useSuspenseQuery } from '@tanstack/react-query'
 import { useDebounceFn } from 'ahooks'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useQueryState } from 'nuqs'
@@ -16,7 +16,12 @@ import * as React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import AppCard from '@/app/components/explore/app-card'
-import { Banner } from '@/app/components/explore/banner/banner'
+import ContinueWork from '@/app/components/explore/continue-work'
+import { LearnDifyContent } from '@/app/components/explore/learn-dify'
+import {
+  useLearnDifyHiddenValue,
+  useSetLearnDifyHidden,
+} from '@/app/components/explore/learn-dify/storage'
 import {
   getStepByStepTourPermissionVariant,
   trackStepByStepTourEvent,
@@ -37,14 +42,18 @@ import { systemFeaturesQueryOptions } from '@/features/system-features/client'
 import { useImportDSL } from '@/hooks/use-import-dsl'
 import { DSLImportMode } from '@/models/app'
 import dynamic from '@/next/dynamic'
-import { consoleQuery } from '@/service/client'
-import { fetchAppDetail, fetchAppList, fetchBanners } from '@/service/explore'
+import { fetchAppDetail } from '@/service/explore'
+import { useLearnDifyAppList } from '@/service/use-explore'
 import { trackCreateApp } from '@/utils/create-app-tracking'
 import { hasPermission } from '@/utils/permission'
 import { ExploreAppListHeader } from './explore-app-list-header'
-import { ExploreRecommendations } from './explore-recommendations'
-import { ExploreHomeSkeleton } from './loading-skeletons'
+import {
+  getHomeContinueWorkQueryOptions,
+  getHomeTemplatesQueryOptions,
+} from './home-queries-client'
+import { MiddleSkeleton, TemplatesSkeleton } from './loading-skeletons'
 import s from './style.module.css'
+import { useMiddleRevealDeadline } from './use-middle-reveal-deadline'
 
 const TryApp = dynamic(() => import('../try-app'), { ssr: false })
 const CreateAppModal = dynamic(() => import('../create-app-modal'), { ssr: false })
@@ -53,89 +62,46 @@ const DSLConfirmModal = dynamic(
   { ssr: false },
 )
 
-type ExploreAppListData = {
-  categories: string[]
-  allList: App[]
-}
-
-const homeContinueWorkAppsInput = {
-  query: {
-    limit: 8,
-  },
-}
-
-const disabledBannersQueryKey = ['explore', 'home', 'banners', 'disabled'] as const
 const HOME_STEP_BY_STEP_TOUR_TASK_ID = 'home' satisfies StepByStepTourTaskId
 
-function getLocaleQueryInput(locale?: string) {
-  return locale ? { query: { language: locale } } : {}
+function TemplatesErrorState({
+  isRetrying,
+  onRetry,
+}: {
+  isRetrying: boolean
+  onRetry: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <section className="px-8 pt-4 pb-6" aria-labelledby="templates-error-title">
+      <div
+        role="alert"
+        className="flex min-h-12 items-center justify-between gap-4 rounded-xl bg-background-section px-4 py-3"
+      >
+        <div className="min-w-0">
+          <h2 id="templates-error-title" className="truncate system-sm-medium text-text-secondary">
+            {t(($) => $['apps.title'], { ns: 'explore' })}
+          </h2>
+          <p className="system-xs-regular text-text-tertiary">
+            {t(($) => $['errorBoundary.title'], { ns: 'common' })}
+          </p>
+        </div>
+        <Button size="small" variant="secondary" loading={isRetrying} onClick={onRetry}>
+          {t(($) => $['operation.retry'], { ns: 'common' })}
+        </Button>
+      </div>
+    </section>
+  )
 }
 
-function getExploreAppListQueryOptions(locale?: string) {
-  const input = getLocaleQueryInput(locale)
-  const language = input.query?.language
-
-  return queryOptions<ExploreAppListData>({
-    queryKey: [...consoleQuery.explore.apps.get.queryKey({ input }), language],
-    queryFn: async () => {
-      const { categories, recommended_apps } = await fetchAppList(language)
-      return {
-        categories,
-        allList: [...recommended_apps].sort((a, b) => a.position - b.position),
-      }
-    },
-  })
-}
-
-function getContinueWorkAppsQueryOptions() {
-  return consoleQuery.apps.recent.get.queryOptions({
-    input: homeContinueWorkAppsInput,
-    select: (response): RecentAppResponse[] => response.data,
-  })
-}
-
-function getBannersQueryOptions(locale?: string) {
-  const input = getLocaleQueryInput(locale)
-  const language = input.query?.language
-
-  return queryOptions<BannerType[]>({
-    queryKey: [...consoleQuery.explore.banners.get.queryKey({ input }), language],
-    queryFn: () => fetchBanners(language),
-  })
-}
-
-function getDisabledBannersQueryOptions() {
-  return queryOptions<BannerType[]>({
-    queryKey: disabledBannersQueryKey,
-    queryFn: async () => [],
-    initialData: [],
-    staleTime: 'static',
-  })
-}
-
-const Apps = ({ onSuccess }: { onSuccess?: () => void }) => {
+export const HomeAppListContent = ({ onSuccess }: { onSuccess?: () => void }) => {
   const { t } = useTranslation()
   const locale = useLocale()
   const workspacePermissionKeys = useAtomValue(workspacePermissionKeysAtom)
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
-  const homeQueries = useQueries({
-    queries: [
-      getExploreAppListQueryOptions(locale),
-      getContinueWorkAppsQueryOptions(),
-      systemFeatures.enable_explore_banner
-        ? getBannersQueryOptions(locale)
-        : getDisabledBannersQueryOptions(),
-    ],
-    combine: ([exploreAppListQuery, continueWorkAppsQuery, bannersQuery]) => ({
-      appListData: exploreAppListQuery.data,
-      continueWorkApps: continueWorkAppsQuery.data ?? [],
-      banners: bannersQuery.data ?? [],
-      isPending:
-        exploreAppListQuery.isPending || continueWorkAppsQuery.isPending || bannersQuery.isPending,
-      isAppListError:
-        exploreAppListQuery.isError ||
-        (!exploreAppListQuery.isPending && !exploreAppListQuery.data),
-    }),
+  const [templatesQuery, continueWorkQuery] = useQueries({
+    queries: [getHomeTemplatesQueryOptions(locale), getHomeContinueWorkQueryOptions()],
   })
   const allCategoriesEn = t(($) => $['apps.allCategories'], { ns: 'explore', lng: 'en' })
   const canCreateApp = hasPermission(workspacePermissionKeys, 'app.create_and_management')
@@ -145,6 +111,20 @@ const Apps = ({ onSuccess }: { onSuccess?: () => void }) => {
   const advanceStepByStepTourGuide = useSetAtom(advanceStepByStepTourGuideAtom)
   const completeStepByStepTourTask = useSetAtom(completeStepByStepTourTaskAtom)
   const resetStepByStepTourSession = useSetAtom(resetStepByStepTourSessionAtom)
+  const learnDifyHidden = useLearnDifyHiddenValue()
+  const setLearnDifyHidden = useSetLearnDifyHidden()
+  const shouldForceShowLearnDifyForTour =
+    activeStepByStepTourTaskId === HOME_STEP_BY_STEP_TOUR_TASK_ID &&
+    !completedStepByStepTourTaskIds.includes(HOME_STEP_BY_STEP_TOUR_TASK_ID) &&
+    (activeStepByStepTourGuideIndex ?? 0) === 0
+  const shouldShowLearnDify =
+    systemFeatures.enable_learn_app && (!learnDifyHidden || shouldForceShowLearnDifyForTour)
+  const learnDifyQuery = useLearnDifyAppList({
+    enabled: shouldShowLearnDify,
+  })
+  const isMiddlePending = useMiddleRevealDeadline(
+    continueWorkQuery.isPending || (shouldShowLearnDify && learnDifyQuery.isPending),
+  )
   const trackHomeTourCompleted = useCallback(
     (
       completedTaskIds: StepByStepTourTaskId[],
@@ -195,24 +175,24 @@ const Apps = ({ onSuccess }: { onSuccess?: () => void }) => {
   })
 
   const visibleCategories = useMemo(() => {
-    if (!homeQueries.appListData) return []
+    if (!templatesQuery.data) return []
 
     const categoriesWithApps = new Set<string>()
-    homeQueries.appListData.allList.forEach((app) => {
+    templatesQuery.data.allList.forEach((app) => {
       app.categories.forEach((category) => categoriesWithApps.add(category))
     })
 
-    return homeQueries.appListData.categories.filter((category) => categoriesWithApps.has(category))
-  }, [homeQueries.appListData])
+    return templatesQuery.data.categories.filter((category) => categoriesWithApps.has(category))
+  }, [templatesQuery.data])
 
   const activeCategory = visibleCategories.includes(currCategory) ? currCategory : allCategoriesEn
 
   const filteredList = useMemo(() => {
-    if (!homeQueries.appListData) return []
-    return homeQueries.appListData.allList.filter(
+    if (!templatesQuery.data) return []
+    return templatesQuery.data.allList.filter(
       (item) => activeCategory === allCategoriesEn || item.categories?.includes(activeCategory),
     )
-  }, [homeQueries.appListData, activeCategory, allCategoriesEn])
+  }, [templatesQuery.data, activeCategory, allCategoriesEn])
 
   const searchFilteredList = useMemo(() => {
     if (!searchKeywords || !filteredList || filteredList.length === 0) return filteredList
@@ -241,10 +221,6 @@ const Apps = ({ onSuccess }: { onSuccess?: () => void }) => {
   const shouldCompleteHomeTourOnCreateRef = useRef(false)
   const isSubmittingHomeTourCreateRef = useRef(false)
   const wasHomeTryAppCreateGuideActiveRef = useRef(false)
-  const shouldForceShowLearnDifyForTour =
-    activeStepByStepTourTaskId === HOME_STEP_BY_STEP_TOUR_TASK_ID &&
-    !completedStepByStepTourTaskIds.includes(HOME_STEP_BY_STEP_TOUR_TASK_ID) &&
-    (activeStepByStepTourGuideIndex ?? 0) === 0
   const abandonHomeTour = useCallback(() => {
     if (
       activeStepByStepTourTaskId !== HOME_STEP_BY_STEP_TOUR_TASK_ID ||
@@ -479,53 +455,66 @@ const Apps = ({ onSuccess }: { onSuccess?: () => void }) => {
     abandonHomeTourCreate()
   }, [abandonHomeTourCreate])
 
-  if (homeQueries.isAppListError) return null
+  const shouldRenderCommittedLearnDify =
+    shouldShowLearnDify && learnDifyQuery.isSuccess && Boolean(learnDifyQuery.data?.length)
+  const isTemplatesError =
+    templatesQuery.isError || (!templatesQuery.isPending && !templatesQuery.data)
 
   return (
-    <div
-      className={cn(
-        'flex h-full min-h-0 flex-col overflow-hidden border-l-[0.5px] border-divider-regular',
-      )}
-    >
-      <div className="flex flex-1 flex-col overflow-y-auto">
-        {homeQueries.isPending ? (
-          <ExploreHomeSkeleton showBanner={systemFeatures.enable_explore_banner} />
-        ) : (
-          <>
-            {systemFeatures.enable_explore_banner && <Banner banners={homeQueries.banners} />}
-            <ExploreRecommendations
+    <>
+      {isMiddlePending ? (
+        <MiddleSkeleton />
+      ) : (
+        <>
+          <ContinueWork apps={continueWorkQuery.data ?? []} />
+          {shouldRenderCommittedLearnDify && (
+            <LearnDifyContent
               canCreate={canCreateApp}
-              continueWorkApps={homeQueries.continueWorkApps}
-              forceShowLearnDify={shouldForceShowLearnDifyForTour}
+              className="pb-0"
+              forceVisible={shouldForceShowLearnDifyForTour}
+              items={learnDifyQuery.data ?? []}
               onCreate={handleCreateFromLearnDify}
+              onHide={shouldForceShowLearnDifyForTour ? undefined : () => setLearnDifyHidden(true)}
               onTry={handleTryAppFromLearnDify}
+              stepByStepTourTarget={STEP_BY_STEP_TOUR_TARGETS.home}
             />
+          )}
+        </>
+      )}
 
-            <ExploreAppListHeader
-              allCategoriesEn={allCategoriesEn}
-              categories={visibleCategories}
-              currCategory={activeCategory}
-              keywords={keywords}
-              onCategoryChange={setCurrCategory}
-              onKeywordsChange={handleKeywordsChange}
-            />
+      {isMiddlePending || templatesQuery.isPending ? (
+        <TemplatesSkeleton />
+      ) : isTemplatesError ? (
+        <TemplatesErrorState
+          isRetrying={templatesQuery.isFetching}
+          onRetry={() => void templatesQuery.refetch()}
+        />
+      ) : (
+        <>
+          <ExploreAppListHeader
+            allCategoriesEn={allCategoriesEn}
+            categories={visibleCategories}
+            currCategory={activeCategory}
+            keywords={keywords}
+            onCategoryChange={setCurrCategory}
+            onKeywordsChange={handleKeywordsChange}
+          />
 
-            <div className={cn('relative flex flex-1 shrink-0 grow flex-col pb-6')}>
-              <nav className={cn(s.appList, 'grid shrink-0 content-start gap-3 px-8')}>
-                {searchFilteredList.map((app) => (
-                  <AppCard
-                    key={app.app_id}
-                    app={app}
-                    canCreate={canCreateApp}
-                    onCreate={() => handleCreateFromAppList(app)}
-                    onTry={handleTryApp}
-                  />
-                ))}
-              </nav>
-            </div>
-          </>
-        )}
-      </div>
+          <div className={cn('relative flex flex-1 shrink-0 grow flex-col pb-6')}>
+            <nav className={cn(s.appList, 'grid shrink-0 content-start gap-3 px-8')}>
+              {searchFilteredList.map((app) => (
+                <AppCard
+                  key={app.app_id}
+                  app={app}
+                  canCreate={canCreateApp}
+                  onCreate={() => handleCreateFromAppList(app)}
+                  onTry={handleTryApp}
+                />
+              ))}
+            </nav>
+          </div>
+        </>
+      )}
       {isShowCreateModal && (
         <CreateAppModal
           appIconType={currApp?.app.icon_type || 'emoji'}
@@ -564,8 +553,21 @@ const Apps = ({ onSuccess }: { onSuccess?: () => void }) => {
           onCreate={handleShowFromTryApp}
         />
       )}
-    </div>
+    </>
   )
 }
+
+const Apps = ({ children, onSuccess }: { children?: ReactNode; onSuccess?: () => void }) => (
+  <div
+    className={cn(
+      'flex h-full min-h-0 flex-col overflow-hidden border-l-[0.5px] border-divider-regular',
+    )}
+  >
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      {children}
+      <HomeAppListContent onSuccess={onSuccess} />
+    </div>
+  </div>
+)
 
 export default React.memo(Apps)

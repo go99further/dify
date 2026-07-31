@@ -1,4 +1,5 @@
 import type { GetAccountProfileResponse } from '@dify/contracts/api/console/account/types.gen'
+import type { GetWorkspacesCurrentSummaryResponse } from '@dify/contracts/api/console/workspaces/types.gen'
 import type { Role } from './access-control'
 import type { I18nText } from '@/i18n-config/language'
 import type { Model } from '@/types/app'
@@ -67,8 +68,14 @@ export type IWorkspace = {
   current: boolean
 }
 
+export type WorkspaceRole = 'owner' | 'admin' | 'editor' | 'dataset_operator' | 'normal'
+
+export type ICurrentWorkspaceSummary = Omit<GetWorkspacesCurrentSummaryResponse, 'role'> & {
+  role: WorkspaceRole
+}
+
 export type ICurrentWorkspace = Omit<IWorkspace, 'current'> & {
-  role: 'owner' | 'admin' | 'editor' | 'dataset_operator' | 'normal'
+  role: WorkspaceRole
   providers: Provider[]
   trial_credits: number
   trial_credits_used: number
@@ -127,6 +134,7 @@ export type FileUploadConfigResponse = {
   file_size_limit: number // default is 15MB
   audio_file_size_limit?: number // default is 50MB
   video_file_size_limit?: number // default is 100MB
+  skill_file_size_limit?: number // default is 50MB
   workflow_file_upload_limit?: number // default is 10
   file_upload_limit: number // default is 5
 }

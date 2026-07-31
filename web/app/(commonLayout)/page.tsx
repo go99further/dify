@@ -1,15 +1,34 @@
-'use client'
+import { Suspense } from 'react'
+import { HomeAppListContent } from '@/app/components/explore/app-list'
+import {
+  MiddleSkeleton,
+  TemplatesSkeleton,
+} from '@/app/components/explore/app-list/loading-skeletons'
+import { HomeBanner } from '@/app/components/explore/banner/home-banner'
+import { BannerSkeleton } from '@/app/components/explore/banner/skeleton'
+import { HomeTitle } from './home-title'
 
-import * as React from 'react'
-import { useTranslation } from 'react-i18next'
-import AppList from '@/app/components/explore/app-list'
-import useDocumentTitle from '@/hooks/use-document-title'
-
-const Home = () => {
-  const { t } = useTranslation()
-  useDocumentTitle(t(($) => $['mainNav.home'], { ns: 'common' }))
-
-  return <AppList />
+export default function Home() {
+  return (
+    <>
+      <HomeTitle />
+      <div className="flex h-full min-h-0 flex-col overflow-hidden border-l-[0.5px] border-divider-regular">
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          <Suspense fallback={<BannerSkeleton />}>
+            <HomeBanner />
+          </Suspense>
+          <Suspense
+            fallback={
+              <>
+                <MiddleSkeleton />
+                <TemplatesSkeleton />
+              </>
+            }
+          >
+            <HomeAppListContent />
+          </Suspense>
+        </div>
+      </div>
+    </>
+  )
 }
-
-export default React.memo(Home)

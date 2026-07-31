@@ -17,7 +17,7 @@ from core.plugin.entities.plugin_daemon import (
     PluginModelProviderDeclaration,
     PluginModelProviderEntity,
 )
-from core.provider_manager import ProviderManager
+from core.provider_manager import ProviderConfigurationCacheSource, ProviderManager
 from graphon.model_runtime.entities.common_entities import I18nObject
 from graphon.model_runtime.entities.provider_entities import ConfigurateMethod, ProviderEntity
 from models.provider import Provider, ProviderCredential, ProviderType, TenantPreferredModelProvider
@@ -1419,6 +1419,7 @@ class TestPluginModelProviderCacheInvalidation:
             patch(f"{MODULE}.PluginInstaller") as installer_cls,
             patch(f"{MODULE}.ProviderCredentialsCache") as credentials_cache,
             patch(f"{MODULE}.PluginService.invalidate_plugin_model_providers_cache") as invalidate_cache,
+            patch("core.provider_manager.ProviderManager.invalidate_configurations_cache") as invalidate_configurations,
         ):
             mock_config.ENTERPRISE_ENABLED = False
             installer = installer_cls.return_value
@@ -1432,6 +1433,13 @@ class TestPluginModelProviderCacheInvalidation:
         assert result is True
         installer.uninstall.assert_called_once_with(TENANT_ID, "installation-1")
         invalidate_cache.assert_called_once_with(TENANT_ID)
+        invalidate_configurations.assert_called_once_with(
+            TENANT_ID,
+            sources=(
+                ProviderConfigurationCacheSource.PREFERRED_MODEL_PROVIDERS,
+                ProviderConfigurationCacheSource.PROVIDER_CREDENTIALS,
+            ),
+        )
         credentials_cache.assert_called_once_with(
             tenant_id=TENANT_ID,
             identity_id=provider_id,

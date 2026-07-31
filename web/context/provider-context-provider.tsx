@@ -69,7 +69,6 @@ export const ProviderContextProvider = ({ children }: ProviderContextProviderPro
     isSuccess: isSuccessModelProviders,
   } = useQuery(consoleQuery.workspaces.current.modelProviders.summary.get.queryOptions())
   const { data: textGenerationModelList } = useModelListByType(ModelTypeEnum.textGeneration)
-  const { data: supportRetrievalMethods } = useSupportRetrievalMethods()
 
   const [plan, setPlan] = useState<ProviderContextState['plan']>(defaultPlan)
   const [isFetchedPlan, setIsFetchedPlan] = useState(false)
@@ -77,7 +76,6 @@ export const ProviderContextProvider = ({ children }: ProviderContextProviderPro
   const [enableBilling, setEnableBilling] = useState(true)
   const [enableReplaceWebAppLogo, setEnableReplaceWebAppLogo] = useState(false)
   const [modelLoadBalancingEnabled, setModelLoadBalancingEnabled] = useState(false)
-  const [datasetOperatorEnabled, setDatasetOperatorEnabled] = useState(false)
   const [webappCopyrightEnabled, setWebappCopyrightEnabled] = useState(false)
   const [licenseLimit, setLicenseLimit] = useState({
     workspace_members: {
@@ -128,7 +126,6 @@ export const ProviderContextProvider = ({ children }: ProviderContextProviderPro
       }
 
       if (data.model_load_balancing_enabled) setModelLoadBalancingEnabled(true)
-      if (data.dataset_operator_enabled) setDatasetOperatorEnabled(true)
       if (data.webapp_copyright_enabled) setWebappCopyrightEnabled(true)
       setLicenseLimit({ workspace_members: resolveMemberInviteLimit(data) })
       if (data.is_allow_transfer_workspace)
@@ -180,7 +177,6 @@ export const ProviderContextProvider = ({ children }: ProviderContextProviderPro
         isAPIKeySet: !!textGenerationModelList?.data?.some(
           (model) => model.status === ModelStatusEnum.active,
         ),
-        supportRetrievalMethods: supportRetrievalMethods?.retrieval_method || [],
         plan,
         isFetchedPlan,
         isFetchedPlanInfo,
@@ -188,7 +184,6 @@ export const ProviderContextProvider = ({ children }: ProviderContextProviderPro
         onPlanInfoChanged: fetchPlan,
         enableReplaceWebAppLogo,
         modelLoadBalancingEnabled,
-        datasetOperatorEnabled,
         enableEducationPlan,
         isEducationWorkspace,
         isEducationAccount: isEducationDataFetchedAfterMount

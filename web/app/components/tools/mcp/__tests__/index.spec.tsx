@@ -7,6 +7,8 @@ import MCPListComponent from '../index'
 
 // Mock dependencies
 const mockOnRefresh = vi.fn<() => Promise<void>>()
+const mockUpdateMCP = vi.fn()
+const mockDeleteMCP = vi.fn()
 let mockProviders: ToolWithProvider[] = []
 let mockIsLoadingToolProviders = false
 const mockConsoleState = vi.hoisted(() => ({
@@ -33,8 +35,6 @@ const createProvider = (
   meta: { version: '1.0.0' },
 })
 
-vi.mock('@/service/use-tools', () => ({}))
-
 type MCPListTestProps = Omit<
   ComponentProps<typeof MCPListComponent>,
   'isLoading' | 'onRefresh' | 'providers'
@@ -48,6 +48,15 @@ const MCPList = (props: MCPListTestProps) => (
     onRefresh={mockOnRefresh}
   />
 )
+vi.mock('@/service/use-tools', () => ({
+  useUpdateMCP: () => ({
+    mutateAsync: mockUpdateMCP,
+  }),
+  useDeleteMCP: () => ({
+    mutateAsync: mockDeleteMCP,
+    isPending: false,
+  }),
+}))
 
 vi.mock('@/context/permission-state', async () => {
   const { createPermissionStateModuleMock } = await import('@/test/console/state-fixture')
@@ -90,23 +99,23 @@ vi.mock('../provider-card', () => ({
   default: ({
     data,
     handleSelect,
-    onUpdate,
-    onDeleted,
+    onEdit,
+    onDelete,
   }: {
     data: ToolWithProvider
     handleSelect: (id: string) => void
-    onUpdate: (id: string) => void
-    onDeleted: () => void
+    onEdit: (id: string) => void
+    onDelete: (id: string) => void
   }) => {
     return (
       <div data-testid={`provider-card-${data.id}`}>
         <button type="button" onClick={() => handleSelect(data.id)}>
           {data.name}
         </button>
-        <button data-testid={`update-btn-${data.id}`} onClick={() => onUpdate(data.id)}>
-          Update
+        <button data-testid={`edit-btn-${data.id}`} onClick={() => onEdit(data.id)}>
+          Edit
         </button>
-        <button data-testid={`delete-btn-${data.id}`} onClick={onDeleted}>
+        <button data-testid={`delete-btn-${data.id}`} onClick={() => onDelete(data.id)}>
           Delete
         </button>
       </div>
@@ -119,12 +128,16 @@ vi.mock('../detail/provider-detail', () => ({
     detail,
     onHide,
     onUpdate,
+    onEdit,
+    onDelete,
     isTriggerAuthorize,
     onFirstCreate,
   }: {
     detail: ToolWithProvider | undefined
     onHide: () => void
     onUpdate: () => void
+    onEdit: (id: string) => void
+    onDelete: (id: string) => void
     isTriggerAuthorize: boolean
     onFirstCreate: () => void
   }) => {
@@ -139,12 +152,46 @@ vi.mock('../detail/provider-detail', () => ({
         <button data-testid="update-detail" onClick={onUpdate}>
           Update List
         </button>
+        <button data-testid="edit-detail" onClick={() => detail && onEdit(detail.id)}>
+          Edit
+        </button>
+        <button data-testid="delete-detail" onClick={() => detail && onDelete(detail.id)}>
+          Delete
+        </button>
         <button data-testid="first-create-done" onClick={onFirstCreate}>
           First Create Done
         </button>
       </div>
     )
   },
+}))
+
+vi.mock('../modal', () => ({
+  default: ({
+    show,
+    data,
+    onConfirm,
+    onHide,
+  }: {
+    show: boolean
+    data?: ToolWithProvider
+    onConfirm: (form: { name: string; server_url: string }) => void
+    onHide: () => void
+  }) =>
+    show ? (
+      <div role="dialog" aria-label="Edit MCP">
+        <div>{data?.name as string}</div>
+        <button
+          type="button"
+          onClick={() => onConfirm({ name: 'Updated MCP', server_url: 'https://updated.com' })}
+        >
+          Save
+        </button>
+        <button type="button" onClick={onHide}>
+          Cancel
+        </button>
+      </div>
+    ) : null,
 }))
 
 describe('MCPList', () => {
@@ -155,6 +202,8 @@ describe('MCPList', () => {
     mockIsLoadingToolProviders = false
     mockConsoleState.workspacePermissionKeys = ['mcp.manage']
     mockOnRefresh.mockResolvedValue(undefined)
+    mockUpdateMCP.mockResolvedValue({ result: 'success' })
+    mockDeleteMCP.mockResolvedValue({ result: 'success' })
   })
 
   afterEach(() => {
@@ -388,31 +437,49 @@ describe('MCPList', () => {
       mockProviders = [createProvider('1', 'Provider 1')]
     })
 
-    it('should call refetch and set provider after update', async () => {
+    it('should open only the edit dialog when edit is selected from a card', async () => {
       render(<MCPList searchText="" />)
 
-      const updateBtn = screen.getByTestId('update-btn-1')
+      fireEvent.click(screen.getByTestId('edit-btn-1'))
 
-      await act(async () => {
-        fireEvent.click(updateBtn)
-        vi.advanceTimersByTime(10)
-        await Promise.resolve()
-      })
+      expect(screen.getByRole('dialog', { name: 'Edit MCP' })).toBeInTheDocument()
+      expect(screen.queryByTestId('detail-panel')).not.toBeInTheDocument()
+    })
 
-      expect(mockOnRefresh).toHaveBeenCalled()
+    it('should replace detail with the edit dialog and restore detail on cancel', () => {
+      render(<MCPList searchText="" />)
+
+      fireEvent.click(screen.getByText('Provider 1'))
+      expect(screen.getByTestId('detail-panel')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('edit-detail'))
+      expect(screen.getByRole('dialog', { name: 'Edit MCP' })).toBeInTheDocument()
+      expect(screen.queryByTestId('detail-panel')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('dialog', { name: 'Edit MCP' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('detail-panel')).toBeInTheDocument()
     })
 
     it('should show detail panel with trigger authorize after update', async () => {
       render(<MCPList searchText="" />)
 
-      const updateBtn = screen.getByTestId('update-btn-1')
+      const updateBtn = screen.getByTestId('edit-btn-1')
+
+      fireEvent.click(updateBtn)
 
       await act(async () => {
-        fireEvent.click(updateBtn)
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }))
         vi.advanceTimersByTime(10)
         await Promise.resolve()
       })
 
+      expect(mockUpdateMCP).toHaveBeenCalledWith({
+        name: 'Updated MCP',
+        server_url: 'https://updated.com',
+        provider_id: '1',
+      })
+      expect(mockOnRefresh).toHaveBeenCalled()
       expect(screen.getByTestId('detail-panel')).toBeInTheDocument()
       expect(screen.getByTestId('trigger-authorize')).toHaveTextContent('true')
     })
@@ -423,17 +490,62 @@ describe('MCPList', () => {
       mockProviders = [createProvider('1', 'Provider 1')]
     })
 
-    it('should call refetch after delete', async () => {
+    it('should replace detail with delete confirmation and restore detail on cancel', () => {
       render(<MCPList searchText="" />)
 
-      const deleteBtn = screen.getByTestId('delete-btn-1')
+      fireEvent.click(screen.getByText('Provider 1'))
+      expect(screen.getByTestId('detail-panel')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('delete-detail'))
+      expect(screen.getByText('tools.mcp.delete')).toBeInTheDocument()
+      expect(screen.queryByTestId('detail-panel')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'common.operation.cancel' }))
+      expect(screen.getByTestId('detail-panel')).toBeInTheDocument()
+    })
+
+    it('should restore detail when the delete dialog requests close', () => {
+      render(<MCPList searchText="" />)
+
+      fireEvent.click(screen.getByText('Provider 1'))
+      fireEvent.click(screen.getByTestId('delete-detail'))
+      expect(screen.queryByTestId('detail-panel')).not.toBeInTheDocument()
+
+      fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
+
+      expect(screen.getByTestId('detail-panel')).toBeInTheDocument()
+    })
+
+    it('should delete from a card without selecting it', async () => {
+      render(<MCPList searchText="" />)
+
+      fireEvent.click(screen.getByTestId('delete-btn-1'))
+      expect(screen.getByText('tools.mcp.delete')).toBeInTheDocument()
 
       await act(async () => {
-        fireEvent.click(deleteBtn)
+        fireEvent.click(screen.getByRole('button', { name: 'common.operation.confirm' }))
         vi.advanceTimersByTime(10)
+        await Promise.resolve()
       })
 
       expect(mockOnRefresh).toHaveBeenCalled()
+      expect(mockDeleteMCP).toHaveBeenCalledWith('1')
+      expect(screen.queryByTestId('detail-panel')).not.toBeInTheDocument()
+    })
+
+    it('should keep delete confirmation open when deletion fails', async () => {
+      mockDeleteMCP.mockResolvedValue({ result: 'error' })
+      render(<MCPList searchText="" />)
+
+      fireEvent.click(screen.getByTestId('delete-btn-1'))
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'common.operation.confirm' }))
+        await Promise.resolve()
+      })
+
+      expect(mockOnRefresh).not.toHaveBeenCalled()
+      expect(screen.getByText('tools.mcp.delete')).toBeInTheDocument()
     })
   })
 

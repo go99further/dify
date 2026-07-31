@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react'
 import type { DefaultModel, ModelItem } from '../declarations'
 import type { ModelSelectorModelPredicate, ModelSelectorProvider } from './types'
+import type { PreviewCardHandle } from '@langgenius/dify-ui/preview-card'
 import { cn } from '@langgenius/dify-ui/cn'
 import { ComboboxGroup, ComboboxItem, ComboboxItemIndicator } from '@langgenius/dify-ui/combobox'
 import { Popover, PopoverContent, PopoverTrigger } from '@langgenius/dify-ui/popover'
@@ -31,14 +32,12 @@ export type ModelSelectorPreviewPayload = {
   modelItem: ModelItem
 }
 
-type PreviewCardHandle = NonNullable<ComponentProps<typeof PreviewCardTrigger>['handle']>
-
 type PopupItemProps = {
   defaultModel?: DefaultModel
   model: ModelSelectorProvider
   modelPredicate?: ModelSelectorModelPredicate
   modelSuggestionPredicate?: ModelSelectorModelPredicate
-  previewCardHandle: PreviewCardHandle
+  previewCardHandle: PreviewCardHandle<ModelSelectorPreviewPayload>
   onPreviewCardClose: () => void
   onHide: () => void
 }
