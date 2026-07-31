@@ -34,6 +34,8 @@ from core.entities.provider_entities import (
 from core.helper import encrypter
 from core.helper.model_provider_cache import ProviderCredentialsCache, ProviderCredentialsCacheType
 from core.helper.position_helper import is_filtered
+from core.plugin.entities.plugin import PluginInstallationSource
+from core.plugin.entities.plugin_daemon import PluginModelProviderDeclaration
 from enums.deployment_edition import DeploymentEdition
 from extensions import ext_hosting_provider
 from extensions.ext_database import db
@@ -62,7 +64,7 @@ from models.provider_ids import ModelProviderID
 from services.feature_service import FeatureService
 
 if TYPE_CHECKING:
-    from graphon.model_runtime.protocols.runtime import ModelRuntime
+    from core.plugin.impl.model_runtime import PluginModelRuntime
     from models.account import Account
 
 logger = logging.getLogger(__name__)
@@ -574,10 +576,10 @@ class ProviderManager:
 
     decoding_rsa_key: Any | None
     decoding_cipher_rsa: Any | None
-    _model_runtime: ModelRuntime
+    _model_runtime: PluginModelRuntime
     _configurations_cache: dict[str, ProviderConfigurations]
 
-    def __init__(self, model_runtime: ModelRuntime):
+    def __init__(self, model_runtime: PluginModelRuntime):
         self.decoding_rsa_key = None
         self.decoding_cipher_rsa = None
         self._model_runtime = model_runtime
@@ -667,8 +669,7 @@ class ProviderManager:
                 )
 
         # Get all provider entities
-        model_provider_factory = ModelProviderFactory(runtime=self._model_runtime)
-        provider_entities = model_provider_factory.get_providers()
+        provider_entities = self._model_runtime.fetch_model_providers()
 
         # Get All preferred provider types of the workspace
         provider_name_to_preferred_model_provider_records_dict = self._get_all_preferred_model_providers(tenant_id)
@@ -1512,7 +1513,7 @@ class ProviderManager:
         return credentials
 
     def _to_system_configuration(
-        self, tenant_id: str, provider_entity: ProviderEntity, provider_records: list[Provider]
+        self, tenant_id: str, provider_entity: PluginModelProviderDeclaration, provider_records: list[Provider]
     ) -> SystemConfiguration:
         """
         Convert to system configuration.
@@ -1527,6 +1528,14 @@ class ProviderManager:
 
         provider_hosting_configuration = hosting_configuration.provider_map.get(provider_entity.provider)
         if provider_hosting_configuration is None or not provider_hosting_configuration.enabled:
+            return SystemConfiguration(enabled=False)
+
+        if provider_entity.installation_source in (None, PluginInstallationSource.Package):
+            return SystemConfiguration(enabled=False)
+
+        from core.plugin.plugin_service import PluginService
+
+        if not PluginService.is_plugin_verified(tenant_id, provider_entity.plugin_unique_identifier):
             return SystemConfiguration(enabled=False)
 
         # Convert provider_records to dict
