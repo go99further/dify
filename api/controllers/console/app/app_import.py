@@ -152,7 +152,7 @@ class AppImportConfirmApi(Resource):
     @with_current_user
     def post(self, current_user: Account | None = None, import_id: str = ""):
         current_user = current_user if current_user is not None else _current_user_and_tenant_id(None)[0]
-        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{import_id}"
+        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{current_user.current_tenant_id}:{current_user.id}:{import_id}"
         pending_data_raw = redis_client.get(redis_key)
         pending_data: PendingData | None = None
         if pending_data_raw:

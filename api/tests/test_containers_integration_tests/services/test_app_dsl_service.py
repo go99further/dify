@@ -488,7 +488,7 @@ class TestAppDslService:
         assert result.status == ImportStatus.PENDING
         assert result.imported_dsl_version == "99.0.0"
 
-        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{result.id}"
+        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{_DEFAULT_TENANT_ID}:{_DEFAULT_ACCOUNT_ID}:{result.id}"
         stored = redis_client.get(redis_key)
         assert stored is not None
 
@@ -594,7 +594,7 @@ class TestAppDslService:
         self, db_session_with_containers: Session, monkeypatch: pytest.MonkeyPatch
     ):
         import_id = str(uuid4())
-        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{import_id}"
+        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{_DEFAULT_TENANT_ID}:{_DEFAULT_ACCOUNT_ID}:{import_id}"
 
         pending = PendingData(
             import_mode=ImportMode.YAML_CONTENT,
@@ -627,7 +627,7 @@ class TestAppDslService:
 
     def test_confirm_import_invalid_pending_data_type_returns_failed(self, db_session_with_containers: Session):
         import_id = str(uuid4())
-        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{import_id}"
+        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{_DEFAULT_TENANT_ID}:{_DEFAULT_ACCOUNT_ID}:{import_id}"
         redis_client.setex(redis_key, IMPORT_INFO_REDIS_EXPIRY, "123")
 
         service = AppDslService(db_session_with_containers)
@@ -637,7 +637,7 @@ class TestAppDslService:
 
     def test_confirm_import_exception_returns_failed(self, db_session_with_containers: Session):
         import_id = str(uuid4())
-        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{import_id}"
+        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{_DEFAULT_TENANT_ID}:{_DEFAULT_ACCOUNT_ID}:{import_id}"
         redis_client.setex(redis_key, IMPORT_INFO_REDIS_EXPIRY, "not-valid-json")
 
         service = AppDslService(db_session_with_containers)

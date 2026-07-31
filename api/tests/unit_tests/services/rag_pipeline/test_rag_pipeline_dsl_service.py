@@ -324,7 +324,7 @@ workflow:
 
 def test_import_rag_pipeline_pending_version(mocker: MockerFixture) -> None:
     yaml_content = "version: 1.0.0\nkind: rag_pipeline\nrag_pipeline: {name: x}"
-    mocker.patch("services.rag_pipeline.rag_pipeline_dsl_service.redis_client.setex")
+    setex = mocker.patch("services.rag_pipeline.rag_pipeline_dsl_service.redis_client.setex")
     service = RagPipelineDslService(session=Mock())
     account = Mock(current_tenant_id="t1", id="u1")
 
@@ -332,6 +332,7 @@ def test_import_rag_pipeline_pending_version(mocker: MockerFixture) -> None:
 
     assert result.status == ImportStatus.PENDING
     assert result.imported_dsl_version == "1.0.0"
+    assert setex.call_args.args[0] == f"app_import_info:t1:u1:{result.id}"
 
 
 # --- confirm_import ---
@@ -352,11 +353,12 @@ workflow:
                 type: knowledge-index
 """
     pending = RagPipelinePendingData(import_mode="yaml-content", yaml_content=yaml_content, pipeline_id="p1")
+    redis_key = "app_import_info:t1:u1:imp-1"
     mocker.patch(
         "services.rag_pipeline.rag_pipeline_dsl_service.redis_client.get",
-        return_value=pending.model_dump_json(),
+        side_effect=lambda key: pending.model_dump_json() if key == redis_key else None,
     )
-    mocker.patch("services.rag_pipeline.rag_pipeline_dsl_service.redis_client.delete")
+    redis_delete = mocker.patch("services.rag_pipeline.rag_pipeline_dsl_service.redis_client.delete")
 
     pipeline = Mock()
     pipeline.id = "p1"
@@ -364,7 +366,7 @@ workflow:
     pipeline.description = "desc"
     pipeline.retrieve_dataset.return_value = None
 
-    mocker.patch.object(RagPipelineDslService, "_create_or_update_pipeline", return_value=pipeline)
+    create_or_update = mocker.patch.object(RagPipelineDslService, "_create_or_update_pipeline", return_value=pipeline)
 
     config_mock = Mock()
     config_mock.indexing_technique = "high_quality"
@@ -392,11 +394,19 @@ workflow:
     account.id = "u1"
     account.current_tenant_id = "t1"
 
+    for other_account in (
+        Mock(id="u1", current_tenant_id="t2"),
+        Mock(id="u2", current_tenant_id="t1"),
+    ):
+        assert service.confirm_import(account=other_account, import_id="imp-1").status == ImportStatus.FAILED
+
+    create_or_update.assert_not_called()
     result = service.confirm_import(account=account, import_id="imp-1")
 
     assert result.status == ImportStatus.COMPLETED
     assert result.pipeline_id == "p1"
     assert result.dataset_id == "d1"
+    redis_delete.assert_called_once_with(redis_key)
 
 
 def test_confirm_import_flushes_new_collection_binding_without_commit(mocker: MockerFixture) -> None:
@@ -672,7 +682,7 @@ def test_import_rag_pipeline_rejects_oversized_yaml_content_by_bytes(
 def test_confirm_import_returns_failed_when_pending_data_is_invalid_type(mocker: MockerFixture) -> None:
     mocker.patch("services.rag_pipeline.rag_pipeline_dsl_service.redis_client.get", return_value=object())
     service = RagPipelineDslService(session=Mock())
-    account = Mock(current_tenant_id="t1")
+    account = Mock(id="u1", current_tenant_id="t1")
 
     result = service.confirm_import(import_id="imp-1", account=account)
 
@@ -1217,7 +1227,7 @@ def test_import_rag_pipeline_sets_default_version_and_kind(mocker: MockerFixture
 def test_import_rag_pipeline_creates_pending_for_dependencies(mocker: MockerFixture) -> None:
     session = cast(MagicMock, Mock())
     service = RagPipelineDslService(session=cast(Session, session))
-    account = Mock(current_tenant_id="t1")
+    account = Mock(id="u1", current_tenant_id="t1")
     setex = mocker.patch("services.rag_pipeline.rag_pipeline_dsl_service.redis_client.setex")
     yaml_content = """
 version: 1.0.0
@@ -1234,6 +1244,7 @@ workflow: {graph: {nodes: []}}
 
     assert result.status == ImportStatus.PENDING
     setex.assert_called_once()
+    assert setex.call_args.args[0] == f"app_import_info:t1:u1:{result.id}"
 
 
 def test_confirm_import_returns_failed_when_pending_pipeline_missing(mocker: MockerFixture) -> None:
@@ -1248,7 +1259,7 @@ def test_confirm_import_returns_failed_when_pending_pipeline_missing(mocker: Moc
     session.scalar.return_value = None
     mocker.patch.object(RagPipelineDslService, "_create_or_update_pipeline", side_effect=ValueError("pipeline missing"))
 
-    result = service.confirm_import(import_id="imp-1", account=Mock(current_tenant_id="t1"))
+    result = service.confirm_import(import_id="imp-1", account=Mock(id="u1", current_tenant_id="t1"))
 
     assert result.status == ImportStatus.FAILED
 

@@ -221,7 +221,7 @@ class RagPipelineDslService:
                     pipeline_id=pipeline_id,
                 )
                 redis_client.setex(
-                    f"{IMPORT_INFO_REDIS_KEY_PREFIX}{import_id}",
+                    f"{IMPORT_INFO_REDIS_KEY_PREFIX}{account.current_tenant_id}:{account.id}:{import_id}",
                     IMPORT_INFO_REDIS_EXPIRY,
                     pending_data.model_dump_json(),
                 )
@@ -360,7 +360,7 @@ class RagPipelineDslService:
         """
         Confirm an import that requires confirmation
         """
-        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{import_id}"
+        redis_key = f"{IMPORT_INFO_REDIS_KEY_PREFIX}{account.current_tenant_id}:{account.id}:{import_id}"
         pending_data = redis_client.get(redis_key)
 
         if not pending_data:

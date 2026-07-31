@@ -70,6 +70,43 @@ def test_import_app_returns_decode_error_for_invalid_yaml_url_bytes(
     assert not unbound_session.in_transaction()
 
 
+def test_pending_import_is_scoped_to_its_owner(monkeypatch: pytest.MonkeyPatch, unbound_session: Session) -> None:
+    pending_imports: dict[str, str] = {}
+    monkeypatch.setattr(
+        "services.app_dsl_service.redis_client.setex",
+        lambda key, _expiry, value: pending_imports.__setitem__(key, value),
+    )
+    service = AppDslService(session=unbound_session)
+    creator = Mock(id="account-1", current_tenant_id="tenant-1")
+
+    pending = service.import_app(
+        account=creator,
+        import_mode="yaml-content",
+        yaml_content="version: 99.0.0\nkind: app\napp: {name: Test, mode: workflow}\n",
+    )
+
+    redis_key = f"app_import_info:tenant-1:account-1:{pending.id}"
+    assert pending.status == ImportStatus.PENDING
+    assert redis_key in pending_imports
+
+    monkeypatch.setattr("services.app_dsl_service.redis_client.get", pending_imports.get)
+    monkeypatch.setattr("services.app_dsl_service.redis_client.delete", pending_imports.pop)
+    monkeypatch.setattr(
+        service,
+        "_create_or_update_app",
+        Mock(return_value=Mock(id="app-1", mode=AppMode.WORKFLOW)),
+    )
+
+    for other_account in (
+        Mock(id="account-1", current_tenant_id="tenant-2"),
+        Mock(id="account-2", current_tenant_id="tenant-1"),
+    ):
+        assert service.confirm_import(import_id=pending.id, account=other_account).status == ImportStatus.FAILED
+
+    assert service.confirm_import(import_id=pending.id, account=creator).status == ImportStatus.COMPLETED
+    assert redis_key not in pending_imports
+
+
 def test_create_or_update_app_loads_existing_model_config_with_service_session(
     sqlite_session_factory: sessionmaker[Session],
 ) -> None:
