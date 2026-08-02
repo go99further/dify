@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: Web3 Support Read-only Tools
+  version: 0.1.0
+  description: Deterministic read-only fixtures for Dify workflow contract tests.
+servers:
+  - url: http://host.docker.internal:8787
+paths:
+  /product-status:
+    get:
+      operationId: get_product_status
+      parameters:
+        - name: product
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [wallet, stablecoin]
+      responses:
+        '200':
+          description: Product status fixture
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [name, status, source, notice]
+                properties:
+                  name: {type: string}
+                  status: {type: string}
+                  source: {type: string}
+                  notice: {type: string}
+        '404':
+          description: Unknown product
+  /risk-notice:
+    get:
+      operationId: get_risk_notice
+      parameters:
+        - name: topic
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [phishing, private_key, investment]
+      responses:
+        '200':
+          description: Risk notice fixture
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [topic, notice]
+                properties:
+                  topic: {type: string}
+                  notice: {type: string}
+        '400':
+          description: Missing or unsupported risk topic

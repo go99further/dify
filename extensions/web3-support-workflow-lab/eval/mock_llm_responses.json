@@ -1,0 +1,6 @@
+{
+  "product_info": {"intent": "product_info", "confidence": 0.98},
+  "risk_notice": {"intent": "risk_notice", "confidence": 0.97},
+  "security_refusal": {"intent": "security_refusal", "confidence": 0.99},
+  "human_handoff": {"intent": "human_handoff", "confidence": 0.91}
+}
