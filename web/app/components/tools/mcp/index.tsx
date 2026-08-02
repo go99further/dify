@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { STEP_BY_STEP_TOUR_TARGETS } from '@/app/components/step-by-step-tour/target-registry'
 import { useCanManageMCP } from '@/app/components/tools/hooks/use-tool-permissions'
 import ToolCardSkeletonGrid from '@/app/components/tools/provider/tool-card-skeleton'
-import { useDeleteMCP, useUpdateMCP } from '@/service/use-tools'
+import { useAllMCPTools, useDeleteMCP, useUpdateMCP } from '@/service/use-tools'
 import { toolsContentInsetClassNames, toolsUnifiedContentFrameClassName } from '../content-inset'
 import NewMCPCard from './create-card'
 import MCPDetailPanel from './detail/provider-detail'
@@ -25,13 +25,13 @@ import MCPModal from './modal'
 import MCPCard from './provider-card'
 
 type Props = Readonly<{
+  providers?: ToolWithProvider[]
+  isLoading?: boolean
   searchText: string
   contentInset?: ToolsContentInset
   createdProviderId?: string
-  isLoading: boolean
+  onRefresh?: () => Promise<unknown>
   onCreatedProviderHandled?: () => void
-  onRefresh: () => Promise<void>
-  providers: ToolWithProvider[]
   showCreateCard?: boolean
 }>
 
@@ -39,38 +39,41 @@ type MCPModalConfirmPayload = Parameters<ComponentProps<typeof MCPModal>['onConf
 type MutationResult = {
   result?: string
 }
+const EMPTY_MCP_TOOLS: ToolWithProvider[] = []
 
 const MCPList = ({
+  providers,
+  isLoading: isLoadingProviders,
   searchText,
   contentInset = 'default',
   createdProviderId,
-  isLoading,
-  onCreatedProviderHandled,
   onRefresh,
-  providers,
+  onCreatedProviderHandled,
   showCreateCard = true,
 }: Props) => {
   const { t } = useTranslation()
   const canManageMCP = useCanManageMCP()
+  const fallbackMCPToolsQuery = useAllMCPTools(providers === undefined)
+  const list = providers ?? fallbackMCPToolsQuery.data ?? EMPTY_MCP_TOOLS
+  const isLoading = isLoadingProviders ?? fallbackMCPToolsQuery.isLoading
+  const refetch = onRefresh ?? fallbackMCPToolsQuery.refetch
   const [isTriggerAuthorize, setIsTriggerAuthorize] = useState<boolean>(false)
 
   const filteredList = useMemo(() => {
-    return providers.filter((collection) => {
+    return list.filter((collection) => {
       if (collection.type !== 'mcp') return false
       if (searchText) return collection.name.toLowerCase().includes(searchText.toLowerCase())
       return true
     }) as ToolWithProvider[]
-  }, [providers, searchText])
+  }, [list, searchText])
 
   const [currentProviderID, setCurrentProviderID] = useState<string>()
   const [editingProviderID, setEditingProviderID] = useState<string>()
   const [deletingProviderID, setDeletingProviderID] = useState<string>()
 
-  const currentProvider = useMemo(() => {
-    return providers.find((provider) => provider.id === currentProviderID)
-  }, [providers, currentProviderID])
-  const editingProvider = providers.find((provider) => provider.id === editingProviderID)
-  const deletingProvider = providers.find((provider) => provider.id === deletingProviderID)
+  const currentProvider = list.find((provider) => provider.id === currentProviderID)
+  const editingProvider = list.find((provider) => provider.id === editingProviderID)
+  const deletingProvider = list.find((provider) => provider.id === deletingProviderID)
   const detailProvider = editingProvider || deletingProvider ? undefined : currentProvider
   const { mutateAsync: updateMCP } = useUpdateMCP({})
   const { mutateAsync: deleteMCP, isPending: isDeleting } = useDeleteMCP({})
@@ -78,7 +81,7 @@ const MCPList = ({
   const handleCreate = async (provider: ToolWithProvider) => {
     if (!canManageMCP) return
 
-    await onRefresh() // update list
+    await refetch() // update list
     setCurrentProviderID(provider.id)
     setIsTriggerAuthorize(true)
   }
@@ -90,7 +93,7 @@ const MCPList = ({
 
     const openCreatedProvider = async () => {
       try {
-        await onRefresh()
+        await refetch()
         if (!isActive) return
 
         setCurrentProviderID(createdProviderId)
@@ -105,7 +108,7 @@ const MCPList = ({
     return () => {
       isActive = false
     }
-  }, [canManageMCP, createdProviderId, onCreatedProviderHandled, onRefresh])
+  }, [canManageMCP, createdProviderId, onCreatedProviderHandled, refetch])
 
   const handleEdit = (providerID: string) => {
     if (!canManageMCP) return
@@ -122,7 +125,7 @@ const MCPList = ({
     })) as MutationResult
     if (res.result !== 'success') return
 
-    await onRefresh() // update list
+    await refetch() // update list
     setCurrentProviderID(editingProvider.id)
     setIsTriggerAuthorize(true)
     setEditingProviderID(undefined)
@@ -140,7 +143,7 @@ const MCPList = ({
     const res = (await deleteMCP(deletingProvider.id)) as MutationResult
     if (res.result !== 'success') return
 
-    await onRefresh()
+    await refetch()
     setCurrentProviderID(undefined)
     setDeletingProviderID(undefined)
   }
@@ -181,7 +184,7 @@ const MCPList = ({
         <MCPDetailPanel
           detail={detailProvider as ToolWithProvider}
           onHide={() => setCurrentProviderID(undefined)}
-          onUpdate={onRefresh}
+          onUpdate={refetch}
           onEdit={handleEdit}
           onDelete={handleDelete}
           isTriggerAuthorize={isTriggerAuthorize}

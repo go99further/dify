@@ -31,6 +31,7 @@ export const commonQueryKeys = {
   modelProviderDetails: [NAME_SPACE, 'model-provider-details'] as const,
   modelList: (type: ModelTypeEnum | ModelType) => [NAME_SPACE, 'model-list', type] as const,
   defaultModel: (type: ModelTypeEnum) => [NAME_SPACE, 'default-model', type] as const,
+  retrievalMethods: [NAME_SPACE, 'support-retrieval-methods'] as const,
   accountIntegrates: [NAME_SPACE, 'account-integrates'] as const,
   notionConnection: [NAME_SPACE, 'notion-connection'] as const,
   codeBasedExtensions: (module?: string) => [NAME_SPACE, 'code-based-extensions', module] as const,
@@ -215,6 +216,13 @@ export const useModelListByType = (type: ModelTypeEnum, enabled = true) => {
     queryKey: commonQueryKeys.modelList(type),
     queryFn: () => get<{ data: Model[] }>(`/workspaces/current/models/model-types/${type}`),
     enabled,
+  })
+}
+
+export const useSupportRetrievalMethods = () => {
+  return useQuery<{ retrieval_method: RETRIEVE_METHOD[] }>({
+    queryKey: commonQueryKeys.retrievalMethods,
+    queryFn: () => get<{ retrieval_method: RETRIEVE_METHOD[] }>('/datasets/retrieval-setting'),
   })
 }
 

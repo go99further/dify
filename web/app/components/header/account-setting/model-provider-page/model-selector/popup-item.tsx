@@ -1,7 +1,6 @@
-import type { ComponentProps } from 'react'
+import type { PreviewCardHandle } from '@langgenius/dify-ui/preview-card'
 import type { DefaultModel, ModelItem } from '../declarations'
 import type { ModelSelectorModelPredicate, ModelSelectorProvider } from './types'
-import type { PreviewCardHandle } from '@langgenius/dify-ui/preview-card'
 import { cn } from '@langgenius/dify-ui/cn'
 import { ComboboxGroup, ComboboxItem, ComboboxItemIndicator } from '@langgenius/dify-ui/combobox'
 import { Popover, PopoverContent, PopoverTrigger } from '@langgenius/dify-ui/popover'

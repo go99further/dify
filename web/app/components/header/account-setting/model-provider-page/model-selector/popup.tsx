@@ -86,10 +86,12 @@ function Popup({
   )
   const { theme } = useTheme()
   const language = useLanguage()
-  const [previewCardHandle] = useState(() => createPreviewCardHandle<ModelSelectorPreviewPayload>())
+  const previewCardHandle = useMemo(
+    () => createPreviewCardHandle<ModelSelectorPreviewPayload>(),
+    [],
+  )
   const [marketplaceCollapsed, setMarketplaceCollapsed] = useState(false)
   const [showIncompatibleModels, setShowIncompatibleModels] = useState(false)
-  const openIntegrationsSetting = useIntegrationsSetting()
   const { modelProviders, modelProviderPlugins = {} } = useProviderContext()
   const { data: enableMarketplace } = useSuspenseQuery({
     ...systemFeaturesQueryOptions(),
@@ -134,7 +136,11 @@ function Popup({
   const hasApiKeyFallback = modelProviders.some((provider) => {
     const isApiKeyActive =
       provider.custom_configuration?.status === CustomConfigurationStatusEnum.active
-    return isApiKeyActive && providerSupportsCredits(provider, trialModels, deploymentEdition)
+    return (
+      isApiKeyActive &&
+      provider.custom_configuration.current_credential_usable &&
+      providerSupportsCredits(provider, trialModels, deploymentEdition)
+    )
   })
 
   const handleInstallPlugin = useCallback(
@@ -311,7 +317,7 @@ function Popup({
           <ModelSelectorPreviewCard
             capabilitiesLabel={t(($) => $['model.capabilities'], { ns: 'common' })}
             language={language}
-            payload={payload}
+            payload={payload as ModelSelectorPreviewPayload | undefined}
           />
         )}
       </PreviewCard>

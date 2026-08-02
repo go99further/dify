@@ -59,10 +59,7 @@ const ModerationSettingModal: FC<ModerationSettingModalProps> = ({ data, onCance
   const { t } = useTranslation()
   const docLink = useDocLink()
   const locale = useLocale()
-  const {
-    data: modelProviders,
-    isPending: isLoading,
-  } = useModelProviderDetails()
+  const { data: modelProviders, isPending: isLoading } = useModelProviderDetails()
   const localeDataRef = useRef<ModerationConfig>(data)
   const [localeData, setLocaleData] = useState<ModerationConfig>(data)
   const [, setSettingsDestination] = useQueryState(settingsQueryParamName, settingsQueryParser)
